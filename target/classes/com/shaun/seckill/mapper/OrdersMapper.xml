@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.shaun.seckill.mapper.OrdersMapper">
+
+    <select id="getOrderDetailById" resultType="com.shaun.seckill.vo.OrderDetailVO">
+        SELECT
+            o.`id`, o.`goods_name`, o.`goods_price`, g.`goods_img`, o.`create_date`, o.`status`
+        FROM
+            t_orders o LEFT JOIN t_goods g ON o.`goods_id` = g.`id`
+        WHERE
+            o.id = #{orderId}
+    </select>
+</mapper>
