@@ -2,6 +2,7 @@ package com.shaun.seckill.controller;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.shaun.seckill.config.AccessLimit;
 import com.shaun.seckill.pojo.SecKillMessage;
 import com.shaun.seckill.pojo.SeckillGoods;
 import com.shaun.seckill.pojo.SeckillOrders;
@@ -13,6 +14,8 @@ import com.shaun.seckill.service.SeckillGoodsService;
 import com.shaun.seckill.service.SeckillOrdersService;
 import com.shaun.seckill.vo.Result;
 import com.shaun.seckill.vo.ResultCode;
+import com.wf.captcha.ArithmeticCaptcha;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -20,22 +23,21 @@ import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.util.CollectionUtils;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @Author Shaun
  * @Date 2022/7/11 15:36
  * @Description: 秒杀控制层
  */
-
+@Slf4j
 @Controller()
 @RequestMapping("/seckill")
 public class SeckillController implements InitializingBean {
@@ -64,9 +66,10 @@ public class SeckillController implements InitializingBean {
      * @param user
      * @return
      */
-    @RequestMapping("/doSeckill/{goodId}")
+    @RequestMapping("/{path}/doSeckill/{goodId}")
     @ResponseBody
-    public Result doSeckill(@PathVariable("goodId") Long goodId, Model model, User user, HttpServletResponse response) {
+    public Result doSeckill(@PathVariable("goodId") Long goodId, Model model, User user,
+                            @PathVariable("path") String path, HttpServletResponse response) {
         if (user == null) {
             try {
                 response.sendRedirect("/login/toLogin");
@@ -74,6 +77,13 @@ public class SeckillController implements InitializingBean {
                 e.printStackTrace();
             }
         }
+
+        log.info("Path : {}, goodsId : {}", path, goodId);
+        // 检查秒杀地址是否正确
+        if (!seckillOrdersService.checkPath(goodId, user.getId(), path)) {
+            return Result.Error(ResultCode.SECKILL_PATH_ERROR);
+        }
+
 
         /*// 1、判断库存数量，不能通过前端传参来判断库存数量，因为库存数量可能会被修改
         GoodsVO goodsVO = goodsService.queryByGoodId(goodId);
@@ -152,6 +162,50 @@ public class SeckillController implements InitializingBean {
         return Result.success(orderId);
     }
 
+    @GetMapping("/captcha")
+    public void getCaptchaImg(Long goodsId, User user, HttpServletResponse response){
+        if (user == null)
+            try {
+                response.sendRedirect("/login/toLogin");
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+        // 设置请求头为输出图片类型
+        response.setContentType("image/gif");
+        response.setHeader("Pragma", "No-cache");
+        response.setHeader("Cache-Control", "no-cache");
+        response.setDateHeader("Expires", 0);
+
+        // 三个参数分别为宽、高、位数
+        ArithmeticCaptcha captcha = new ArithmeticCaptcha(130, 48, 3);
+        // 将验证码存入到 redis 中，过期时间为 5 分钟
+        redisTemplate.opsForValue().set("captacha:" + user.getId() +":" + goodsId, captcha.text(),
+                5, TimeUnit.MINUTES);
+
+        // 输出图片流
+        try {
+            captcha.out(response.getOutputStream());
+        } catch (IOException e) {
+            log.error("二维码生成错误", e);
+        }
+    }
+
+    @AccessLimit(seconds = 5, maxCount = 5)
+    @GetMapping("/path/{goodsId}/{verifyCode}")
+    @ResponseBody
+    public Result getSeckillPath(@PathVariable("goodsId") Long goodsId, User user,
+                                 @PathVariable("verifyCode") String verifyCode) {
+        if (user == null)
+            return Result.Error(ResultCode.NOT_LOGIN);
+
+        boolean result = seckillOrdersService.checkVerifyCode(goodsId, user.getId(), verifyCode);
+        if (!result)
+            return Result.Error(ResultCode.ERROR_CAPTCHA);
+
+        String seckillPath = seckillOrdersService.createSeckillPath(goodsId, user.getId());
+        return Result.success(seckillPath);
+    }
 
     /**
      * 在初始化阶段，将数据库中秒杀商品的库存提前存储在redis中。

@@ -1,5 +1,6 @@
 package com.shaun.seckill.revolver;
 
+import com.shaun.seckill.config.UserContext;
 import com.shaun.seckill.pojo.User;
 import com.shaun.seckill.service.UserService;
 import com.shaun.seckill.util.CookieUtil;
@@ -36,13 +37,6 @@ public class UserArgumentResolver implements HandlerMethodArgumentResolver {
     public Object resolveArgument(MethodParameter parameter, ModelAndViewContainer mavContainer,
                                   NativeWebRequest webRequest, WebDataBinderFactory binderFactory) throws Exception {
 
-        HttpServletRequest request = webRequest.getNativeRequest(HttpServletRequest.class);
-        HttpServletResponse response = webRequest.getNativeResponse(HttpServletResponse.class);
-
-        String ticket = CookieUtil.getCookieValue(request, "UserTicket");
-        if (!StringUtils.hasLength(ticket))
-            return null;
-
-        return userService.getUserByCookie(ticket, request, response);
+        return UserContext.getUser();
     }
 }

@@ -26,10 +26,14 @@ public enum ResultCode {
     EMPTY_STOCK(50101, "库存数量不足"),
     REPEAT_PURCHASE(50102, "不能重复购买秒杀商品"),
     SECKILL_FAIL(50103, "秒杀失败"),
+    SECKILL_PATH_ERROR(50104, "秒杀地址错误"),
+
     // 订单模板
     ORDER_IS_NOT_EXIST(50201, "订单不存在"),
-
-
+    // 验证码模块
+    ERROR_CAPTCHA(50301, "验证码错误"),
+    // 限流模块
+    ACCESS_LIMIT_ERROR(50401, "请求太过于频繁，请稍后重试")
     ;
 
     private Integer code;

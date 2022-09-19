@@ -88,6 +88,7 @@ spring:
     # 服务器地址
     host: 192.168.199.3
     # 数据库
+    database: 0
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
     time-zone: GMT+8

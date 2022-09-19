@@ -6,9 +6,15 @@ import com.shaun.seckill.mapper.SeckillOrdersMapper;
 import com.shaun.seckill.pojo.User;
 import com.shaun.seckill.service.SeckillOrdersService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.shaun.seckill.util.MD5Util;
+import com.shaun.seckill.util.UUIDUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 /**
  * <p>
@@ -41,5 +47,46 @@ public class SeckillOrdersServiceImp extends ServiceImpl<SeckillOrdersMapper, Se
             return -1L;
         }else
             return 0L;
+    }
+
+    /**
+     * 验证用户发送的验证码是否跟数据库中的一样
+     * @param goodsId 商品id
+     * @param userId 用户 id
+     * @param verifyCode 用户发送的验证码
+     * @return 验证结果
+     */
+    @Override
+    public boolean checkVerifyCode(Long goodsId, Long userId, String verifyCode) {
+        if (goodsId == null || userId == null || !StringUtils.hasText(verifyCode))
+            return false;
+
+        String key = "captacha:" + userId + ":" + goodsId;
+        return verifyCode.equals(redisTemplate.opsForValue().get(key));
+    }
+
+    /**
+     * 随机生成秒杀地址
+     * @param goodsId 商品id
+     * @param userId 用户id
+     * @return 秒杀地址
+     */
+    @Override
+    public String createSeckillPath(Long goodsId, Long userId) {
+        // 1、使用MD5随机生成秒杀地址
+        String seckillPath = MD5Util.md5(UUIDUtil.uuid() + "123456");
+        // 2、将秒杀地址存入在 Redis 中，设置失效时间为 60秒
+        redisTemplate.opsForValue().set("SeckillPath:" + userId + ":" + goodsId, seckillPath,
+                60, TimeUnit.SECONDS);
+        // 3、返回秒杀地址
+        return seckillPath;
+    }
+
+    @Override
+    public boolean checkPath(Long goodId, Long userId, String path) {
+        if (goodId == null || userId == null || !StringUtils.hasText(path))
+            return false;
+
+        return path.equals(redisTemplate.opsForValue().get("SeckillPath:" + userId + ":" + goodId));
     }
 }
